@@ -1,0 +1,131 @@
+#include <WiFi.h>
+#include <WiFiManager.h>
+#include <HTTPClient.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+
+// Pin Definitions
+#define PH_PIN 34
+#define TURBIDITY_PIN 35
+#define WATER_LEVEL_PIN 32
+#define LEAK_PIN 33
+#define FEED_LEVEL_PIN 25
+#define TEMP_PIN 4
+#define SERVO_PIN 13
+#define PUMP_PIN 26
+#define LED_PIN 27
+#define CONTACT_PIN 14
+#define BUZZER_PIN 12
+
+// LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// Temperature
+OneWire oneWire(TEMP_PIN);
+DallasTemperature sensors(&oneWire);
+
+// Servo
+Servo feederServo;
+
+// Device ID
+String device_id = "POND1_SENSOR";
+
+// Your ngrok URL
+String serverName = "http://abc123.ngrok-free.app/api/sensor";
+String feedCheckURL = "http://abc123.ngrok-free.app/api/feed_status";
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(LEAK_PIN, INPUT);
+  pinMode(FEED_LEVEL_PIN, INPUT);
+  pinMode(CONTACT_PIN, INPUT);
+  pinMode(PUMP_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  feederServo.attach(SERVO_PIN);
+  feederServo.write(0);
+
+  lcd.init();
+  lcd.backlight();
+
+  sensors.begin();
+
+  // WiFi Captive Portal
+  WiFiManager wm;
+  wm.autoConnect("FishPond_Setup");
+
+  lcd.setCursor(0,0);
+  lcd.print("WiFi Connected");
+  delay(2000);
+}
+
+void loop() {
+  sensors.requestTemperatures();
+  float temperature = sensors.getTempCByIndex(0);
+  int phValue = analogRead(PH_PIN);
+  int turbidity = analogRead(TURBIDITY_PIN);
+  int waterLevel = analogRead(WATER_LEVEL_PIN);
+  int leak = digitalRead(LEAK_PIN);
+  int feedLevel = digitalRead(FEED_LEVEL_PIN);
+  int contact = digitalRead(CONTACT_PIN);
+
+  // LCD Display
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Temp:");
+  lcd.print(temperature);
+  lcd.setCursor(0,1);
+  lcd.print("pH:");
+  lcd.print(phValue);
+
+  sendData(temperature, phValue, turbidity, waterLevel, leak, feedLevel, contact);
+  checkFeedCommand();
+
+  delay(10000);
+}
+
+void sendData(float temp, int ph, int turb, int level, int leak, int feedLevel, int contact) {
+  if(WiFi.status()== WL_CONNECTED){
+    HTTPClient http;
+    http.begin(serverName);
+    http.addHeader("Content-Type", "application/json");
+
+    String json = "{";
+    json += "\"device_id\":\"" + device_id + "\",";
+    json += "\"temperature\":" + String(temp) + ",";
+    json += "\"ph\":" + String(ph) + ",";
+    json += "\"turbidity\":" + String(turb) + ",";
+    json += "\"water_level\":" + String(level) + ",";
+    json += "\"leak\":" + String(leak) + ",";
+    json += "\"feed_level\":" + String(feedLevel) + ",";
+    json += "\"contact\":" + String(contact);
+    json += "}";
+
+    http.POST(json);
+    http.end();
+  }
+}
+
+void checkFeedCommand(){
+  HTTPClient http;
+  http.begin(feedCheckURL);
+  int httpCode = http.GET();
+
+  if(httpCode == 200){
+    String payload = http.getString();
+    if(payload == "FEED"){
+      feedFish();
+    }
+  }
+  http.end();
+}
+
+void feedFish(){
+  feederServo.write(90);
+  delay(3000);
+  feederServo.write(0);
+}
