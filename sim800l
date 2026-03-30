@@ -1,0 +1,23 @@
+HardwareSerial sim800(2);
+
+void sendSMS(String message) {
+  sim800.println("AT+CMGF=1"); // Text mode
+  delay(1000);
+
+  sim800.println("AT+CMGS=\"+639XXXXXXXXX\""); // Your number
+  delay(1000);
+
+  sim800.print(message);
+  delay(500);
+
+  sim800.write(26); // CTRL+Z to send
+  delay(3000);
+}
+
+void setup() {
+  Serial.begin(115200);
+  sim800.begin(9600, SERIAL_8N1, 16, 17);
+
+  delay(3000);
+  sim800.println("AT");
+}
