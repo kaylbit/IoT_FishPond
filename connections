@@ -1,0 +1,16 @@
+GPIO 4   → Temperature (DS18B20)
+GPIO 12  → Buzzer
+GPIO 13  → Servo (PWM)
+GPIO 14  → Contact Sensor
+GPIO 16  → SIM800L TX (RX2)
+GPIO 17  → SIM800L RX (TX2)
+GPIO 21  → LCD SDA
+GPIO 22  → LCD SCL
+GPIO 25  → Feed Level Sensor
+GPIO 26  → Pump Relay
+GPIO 27  → LED Relay
+GPIO 32  → Water Level
+GPIO 33  → Leak Sensor
+GPIO 34  → pH Sensor
+GPIO 35  → Turbidity Sensor
+GPIO 0   → Reset Button
