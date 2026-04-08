@@ -1,0 +1,58 @@
+#define TINY_GSM_MODEM_SIM800
+
+#include <TinyGsmClient.h>
+#include <SoftwareSerial.h>
+
+SoftwareSerial SerialAT(4, 3);
+TinyGsm modem(SerialAT);
+
+const char topic[] = "Hello from Arduino!";
+const char phoneNumber[] = "+639";
+
+const int BUTTON = 2;
+const int LED = 13;
+int BUTTONstate = 0;
+
+void  setup(){
+  Serial.begin(9600);
+  delay(10);
+
+  SerialAT.begin(9600);
+  delay(3000);
+
+  Serial.println("Initializing modem...");
+  if (!modem.restart()) {
+    Serial.println("Failed to restart modem. Check power/wiring!");
+    while(true); // Stop execution if modem fails
+  }
+  pinMode(BUTTON, INPUT);
+  pinMode(LED, OUTPUT);
+}
+
+void  loop()
+{
+  BUTTONstate = digitalRead(BUTTON);
+  if (BUTTONstate == HIGH)
+  {
+    digitalWrite(LED, HIGH);
+    Serial.println("Button Pressed! Sending SMS...");
+
+    bool res = modem.sendSMS(phoneNumber, topic);
+  
+    if (res) {
+      Serial.println("SMS sent successfully!");
+    } else {
+      Serial.println("SMS send failed.");
+    }
+
+    // --- CRITICAL: Wait for user to let go of the button ---
+    while(digitalRead(BUTTON) == HIGH) {
+      delay(10); 
+    }
+    digitalWrite(LED, LOW);
+    Serial.println("Button released. Ready for next trigger.");
+  } 
+  else{
+    digitalWrite(LED,  LOW);
+  }
+}
