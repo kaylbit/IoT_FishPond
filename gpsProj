@@ -1,0 +1,117 @@
+#include <SoftwareSerial.h>
+#include <TinyGPS++.h>
+
+// GPS (RX, TX)
+SoftwareSerial gpsSerial(4, 3);
+
+// GSM (RX, TX)
+SoftwareSerial gsmSerial(7, 8);
+
+TinyGPSPlus gps;
+
+// Reference location
+double setLat = 0.0;
+double setLon = 0.0;
+bool locationSet = false;
+bool alertSent = false;
+
+const float GEOFENCE_RADIUS = 50.0; // meters
+
+// Phone number (CHANGE THIS)
+String phoneNumber = "+639XXXXXXXXX";
+
+void setup() {
+  Serial.begin(9600);
+  gpsSerial.begin(9600);
+  gsmSerial.begin(9600);
+
+  Serial.println("System Initializing...");
+  delay(3000);
+}
+
+void loop() {
+  while (gpsSerial.available()) {
+    gps.encode(gpsSerial.read());
+  }
+
+  if (gps.location.isUpdated()) {
+    double currentLat = gps.location.lat();
+    double currentLon = gps.location.lng();
+
+    Serial.print("Lat: ");
+    Serial.println(currentLat, 6);
+    Serial.print("Lon: ");
+    Serial.println(currentLon, 6);
+
+    // 📍 SET INITIAL LOCATION
+    if (!locationSet) {
+      setLat = currentLat;
+      setLon = currentLon;
+      locationSet = true;
+
+      Serial.println("Reference location set!");
+      return;
+    }
+
+    // 📏 CALCULATE DISTANCE
+    double distance = calculateDistance(setLat, setLon, currentLat, currentLon);
+
+    Serial.print("Distance (m): ");
+    Serial.println(distance);
+
+    // 🚨 GEOFENCE CHECK
+    if (distance > GEOFENCE_RADIUS && !alertSent) {
+      Serial.println("ALERT: Outside geofence!");
+
+      sendSMS(currentLat, currentLon);
+      alertSent = true;
+    }
+
+    if (distance < GEOFENCE_RADIUS) {
+      alertSent = false; // reset if back inside
+    }
+  }
+}
+
+// 📐 HAVERSINE FORMULA
+double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  double R = 6371000; // Earth radius (meters)
+
+  double dLat = radians(lat2 - lat1);
+  double dLon = radians(lon2 - lon1);
+
+  double a = sin(dLat/2) * sin(dLat/2) +
+             cos(radians(lat1)) * cos(radians(lat2)) *
+             sin(dLon/2) * sin(dLon/2);
+
+  double c = 2 * atan2(sqrt(a), sqrt(1-a));
+
+  return R * c;
+}
+
+// 📩 SEND SMS FUNCTION
+void sendSMS(double lat, double lon) {
+  gsmSerial.println("AT");
+  delay(1000);
+
+  gsmSerial.println("AT+CMGF=1"); // Text mode
+  delay(1000);
+
+  gsmSerial.print("AT+CMGS=\"");
+  gsmSerial.print(phoneNumber);
+  gsmSerial.println("\"");
+  delay(1000);
+
+  gsmSerial.println("Alert! Device moved beyond 50 meters.");
+  gsmSerial.print("Location: https://maps.google.com/?q=");
+  gsmSerial.print(lat, 6);
+  gsmSerial.print(",");
+  gsmSerial.println(lon, 6);
+
+  delay(500);
+
+  gsmSerial.write(26); // CTRL+Z to send
+  delay(5000);
+
+  Serial.println("SMS Sent!");
+}
